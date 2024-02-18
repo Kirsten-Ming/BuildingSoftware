@@ -8,65 +8,51 @@ from plyer import notification
 
 class Analysis:
     """
-    A class for performing analysis on Spotify data.
+    A class for analyzing Spotify data.
     """
 
-    def __init__(self, config_paths, artist_id):
+    def __init__(self, config_path, artist_id):
         """
-        Initialize the Analysis class.
+        Initialize the SpotifyAnalyzer.
 
         Parameters:
-        - config_paths (str): The path to the configuration file.
+        - config_path (str): The path to the configuration file.
         - artist_id (str): The Spotify artist ID.
         """
-        # Set up the logger FIRST
-        self.logger = logging.getLogger(__name__) 
+        self.logger = logging.getLogger(__name__)
         self.logger.setLevel(logging.DEBUG)
 
-        absolute_path = os.path.abspath(config_paths)
-        print("Absolute Path:", absolute_path) 
-
-        # Load configuration at initialization
-        self.config = self.load_config(absolute_path)  
-        self.logger.debug("Loaded Configuration: %s", self.config)
-       
+        config_path = os.path.abspath(config_path)
+        self.config = self.load_config(config_path)
         self.artist_id = artist_id
         self.df = None
         self.BASE_URL = 'https://api.spotify.com/v1/'
 
-        self.logger.debug("Configuration paths: %s", config_paths) 
-
-        absolute_path = os.path.abspath(config_paths)
-        print("Absolute Path:", absolute_path) 
-        self.config = self.load_config(absolute_path)
-
-    def load_config(self, config_paths):
+    def load_config(self, config_path):
         """
         Load the configuration from the specified path.
 
         Parameters:
-        - config_paths (str): The path to the configuration file.
+        - config_path (str): The path to the configuration file.
 
         Returns:
         - dict: The loaded configuration.
         """
         config = {}
         try:
-            with open('config/user_config.yml', 'r') as f:  
-                config = yaml.safe_load(f) 
+            with open(os.path.join(config_path, 'config', 'user_config.yml'), 'r') as f:
+                config = yaml.safe_load(f)
         except FileNotFoundError as e:
             print(f"Error loading config files: {e}")
-        return config 
+        return config
     
-    def _authenticate(self):
+    def authenticate(self):
         """
         Authenticate with Spotify API and obtain an access token.
 
         Returns:
         - str: The access token.
         """
-        print("Loaded Configuration:", self.config)
-    
         auth_url = 'https://accounts.spotify.com/api/token'
         payload = {
             'grant_type': 'client_credentials',
@@ -79,19 +65,21 @@ class Analysis:
             response.raise_for_status() 
             return response.json()['access_token'] 
         except requests.exceptions.RequestException as e:
-            print(f"Authentication error: {e}")
+            raise Exception(f"Authentication error: {e}")
         
-    def _fetch_albums(self):
+    def fetch_albums(self, access_token):
         """
-        Fetch the albums for a given artist.
+        Fetch albums for the specified artist.
+
+        Parameters:
+        - access_token (str): The Spotify access token.
 
         Returns:
         - dict: The response JSON containing album information.
         """
-        self.logger.debug("Entering _fetch_albums")
-        access_token = self._authenticate()
-        headers = {'Authorization': 'Bearer {token}'.format(token=access_token)}
-        albums_url = self.BASE_URL + 'artists/{}/albums'.format(self.artist_id)
+        self.logger.debug("Entering fetch_albums")
+        headers = {'Authorization': f'Bearer {access_token}'}
+        albums_url = f'{self.BASE_URL}artists/{self.artist_id}/albums'
         params = {'include_groups': 'album', 'limit': 50}
 
         try:
@@ -103,9 +91,9 @@ class Analysis:
             self.logger.error(f"Error fetching albums: {e}")
             return None 
 
-    def _fetch_tracks(self, album_id, access_token):
+    def fetch_tracks(self, album_id, access_token):
         """
-        Fetch the tracks for a given album.
+        Fetch tracks for the specified album.
 
         Parameters:
         - album_id (str): The Spotify album ID.
@@ -114,20 +102,20 @@ class Analysis:
         Returns:
         - dict: The response JSON containing track information.
         """
-        headers = {'Authorization': 'Bearer {token}'.format(token=access_token)}
-        tracks_url = self.BASE_URL + 'albums/{}/tracks'.format(album_id)
+        headers = {'Authorization': f'Bearer {access_token}'}
+        tracks_url = f'{self.BASE_URL}albums/{album_id}/tracks'
 
         try:
             response = requests.get(tracks_url, headers=headers)
             response.raise_for_status()
             return response.json()
         except requests.exceptions.RequestException as e:
-            self.logger.error(f"Error fetching tracks: {e}")  # Use logger here 
+            self.logger.error(f"Error fetching tracks: {e}")
             return None
-        
-    def _fetch_audio_features(self, track_id, access_token):
+    
+    def fetch_audio_features(self, track_id, access_token):
         """
-        Fetch the audio features for a given track.
+        Fetch audio features for the specified track.
 
         Parameters:
         - track_id (str): The Spotify track ID.
@@ -136,15 +124,15 @@ class Analysis:
         Returns:
         - dict: The response JSON containing audio features.
         """
-        headers = {'Authorization': 'Bearer {token}'.format(token=access_token)}
-        audio_features_url = self.BASE_URL + 'audio-features/{}'.format(track_id)
+        headers = {'Authorization': f'Bearer {access_token}'}
+        audio_features_url = f'{self.BASE_URL}audio-features/{track_id}'
 
         try:
             response = requests.get(audio_features_url, headers=headers)
             response.raise_for_status()
             return response.json()
         except requests.exceptions.RequestException as e:
-            self.logger.error(f"Error fetching audio features: {e}") 
+            self.logger.error(f"Error fetching audio features: {e}")
         return None
     
     def load_data(self):
@@ -153,33 +141,36 @@ class Analysis:
 
         Populates self.df with data on track names, danceability, and energy.
         """
-        albums = self._fetch_albums()
-        access_token = self._authenticate()  # Fetch the token once outside the loop
+        access_token = self.authenticate()
+        albums = self.fetch_albums(access_token)
 
-        tracks = []
-        for album in albums['items']:
-            tracks.extend(self._fetch_tracks(album['id'], access_token)['items'])  
+        if albums:
+            tracks = []
+            for album in albums.get('items', []):
+                album_id = album.get('id')
+                if album_id:
+                    album_tracks = self.fetch_tracks(album_id, access_token)
+                    if album_tracks:
+                        tracks.extend(album_tracks.get('items', []))
 
-        audio_features = []
-        for track in tracks:
-            features = self._fetch_audio_features(track['id'], access_token)  
-        if features: 
-            audio_features.append(features)
-        
-        track_names = [track['name'] for track in tracks]  
-        danceability_values = [feature['danceability'] for feature in audio_features]
-        energy_values = [feature['energy'] for feature in audio_features]
+            audio_features = []
+            for track in tracks:
+                features = self.fetch_audio_features(track['id'], access_token)  
+                if features: 
+                    audio_features.append(features)
+            
+            track_names = [track['name'] for track in tracks]  
+            danceability_values = [feature['danceability'] for feature in audio_features]
+            energy_values = [feature['energy'] for feature in audio_features]
 
-        data = {'track_name': track_names, 
-            'danceability': danceability_values, 
-            'energy': energy_values}
-        
-        print(len(track_names))
-        print(len(danceability_values))
-        print(len(energy_values)) 
+            data = {'track_name': track_names, 
+                    'danceability': danceability_values, 
+                    'energy': energy_values}
 
-        self.df = pd.DataFrame(data)
-        print(self.df.head())  # Inspect your DataFrame
+            self.df = pd.DataFrame(data)
+            print(self.df.head())  # Inspect your DataFrame
+        else:
+            print("Error fetching albums. Check authentication.")
 
     def compute_analysis(self):
         """
@@ -189,28 +180,17 @@ class Analysis:
             mean_features = self.df.groupby('track_name').mean()
             print(mean_features)
         else:
-            print("No data loaded. Call load_data() first.")
-
-    def notify_done(self, message: str) -> None:
-        """
-        Notify the completion of Spotify analysis using system notifications.
-
-        Parameters:
-        - message (str): The message to display in the notification.
-        """
-        notification.notify(
-            title='Spotify Analysis Completed',
-            message=message,
-            app_name='My Spotify Analysis',
-        )
+           
+    def main():
+        parser = argparse.ArgumentParser(description='Perform analysis on Spotify data.')
+        parser.add_argument('artist_id', help='The Spotify artist ID')
+        parser.add_argument('config_file', help='The path to the configuration file')
     
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Perform analysis on Spotify data.')
-    parser.add_argument('artist_id', help='The Spotify artist ID')
-    parser.add_argument('config_file', help='The path to the configuration file')
+        args = parser.parse_args()
+    
+        analyzer = Analysis(args.config_file, args.artist_id) 
+        analyzer.load_data() 
+        analyzer.compute_analysis()
 
-    args = parser.parse_args()
-
-    analyzer = Analysis('user_config.yml', args.artist_id) 
-    analyzer.load_data() 
-    analyzer.compute_analysis() 
+    if __name__ == "__main__":
+        main()
