@@ -4,13 +4,21 @@ import yaml
 import pandas as pd
 import logging
 import os
-
 from plyer import notification
 
-
-
 class Analysis:
+    """
+    A class for performing analysis on Spotify data.
+    """
+
     def __init__(self, config_paths, artist_id):
+        """
+        Initialize the Analysis class.
+
+        Parameters:
+        - config_paths (str): The path to the configuration file.
+        - artist_id (str): The Spotify artist ID.
+        """
         # Set up the logger FIRST
         self.logger = logging.getLogger(__name__) 
         self.logger.setLevel(logging.DEBUG)
@@ -33,6 +41,15 @@ class Analysis:
         self.config = self.load_config(absolute_path)
 
     def load_config(self, config_paths):
+        """
+        Load the configuration from the specified path.
+
+        Parameters:
+        - config_paths (str): The path to the configuration file.
+
+        Returns:
+        - dict: The loaded configuration.
+        """
         config = {}
         try:
             with open('config/user_config.yml', 'r') as f:  
@@ -42,6 +59,12 @@ class Analysis:
         return config 
     
     def _authenticate(self):
+        """
+        Authenticate with Spotify API and obtain an access token.
+
+        Returns:
+        - str: The access token.
+        """
         print("Loaded Configuration:", self.config)
     
         auth_url = 'https://accounts.spotify.com/api/token'
@@ -59,6 +82,12 @@ class Analysis:
             print(f"Authentication error: {e}")
         
     def _fetch_albums(self):
+        """
+        Fetch the albums for a given artist.
+
+        Returns:
+        - dict: The response JSON containing album information.
+        """
         self.logger.debug("Entering _fetch_albums")
         access_token = self._authenticate()
         headers = {'Authorization': 'Bearer {token}'.format(token=access_token)}
@@ -75,6 +104,16 @@ class Analysis:
             return None 
 
     def _fetch_tracks(self, album_id, access_token):
+        """
+        Fetch the tracks for a given album.
+
+        Parameters:
+        - album_id (str): The Spotify album ID.
+        - access_token (str): The Spotify access token.
+
+        Returns:
+        - dict: The response JSON containing track information.
+        """
         headers = {'Authorization': 'Bearer {token}'.format(token=access_token)}
         tracks_url = self.BASE_URL + 'albums/{}/tracks'.format(album_id)
 
@@ -87,6 +126,16 @@ class Analysis:
             return None
         
     def _fetch_audio_features(self, track_id, access_token):
+        """
+        Fetch the audio features for a given track.
+
+        Parameters:
+        - track_id (str): The Spotify track ID.
+        - access_token (str): The Spotify access token.
+
+        Returns:
+        - dict: The response JSON containing audio features.
+        """
         headers = {'Authorization': 'Bearer {token}'.format(token=access_token)}
         audio_features_url = self.BASE_URL + 'audio-features/{}'.format(track_id)
 
@@ -99,6 +148,11 @@ class Analysis:
         return None
     
     def load_data(self):
+        """
+        Load data from Spotify API and create a DataFrame.
+
+        Populates self.df with data on track names, danceability, and energy.
+        """
         albums = self._fetch_albums()
         access_token = self._authenticate()  # Fetch the token once outside the loop
 
@@ -128,27 +182,35 @@ class Analysis:
         print(self.df.head())  # Inspect your DataFrame
 
     def compute_analysis(self):
+        """
+        Compute the mean features for each track and print the result.
+        """
         if not self.df.empty:
             mean_features = self.df.groupby('track_name').mean()
             print(mean_features)
         else:
             print("No data loaded. Call load_data() first.")
 
-    def notify_done(self, message: str) -> None: #I changed the notification section because Python3 does not support Nfty
+    def notify_done(self, message: str) -> None:
+        """
+        Notify the completion of Spotify analysis using system notifications.
 
+        Parameters:
+        - message (str): The message to display in the notification.
+        """
         notification.notify(
             title='Spotify Analysis Completed',
             message=message,
             app_name='My Spotify Analysis',
-    )
+        )
     
 if __name__ == "__main__":
-        parser = argparse.ArgumentParser(description='Perform analysis on Spotify data.')
-        parser.add_argument('artist_id', help='The Spotify artist ID')
-        parser.add_argument('config_file', help='The path to the configuration file')
+    parser = argparse.ArgumentParser(description='Perform analysis on Spotify data.')
+    parser.add_argument('artist_id', help='The Spotify artist ID')
+    parser.add_argument('config_file', help='The path to the configuration file')
 
-        args = parser.parse_args()
+    args = parser.parse_args()
 
-        analyzer = Analysis('user_config.yml', args.artist_id) 
-        analyzer.load_data() 
-        analyzer.compute_analysis() 
+    analyzer = Analysis('user_config.yml', args.artist_id) 
+    analyzer.load_data() 
+    analyzer.compute_analysis() 
