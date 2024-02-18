@@ -1,0 +1,17 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "spotify-analysis-tool"
+authors = [
+    {name = "Kirsten Ming, email = Kirsten.ming@ontariohealth.ca},
+]
+description = "Python script for analyzing Spotify data"
+version = "0.1.0"
+dependencies = ["requests", "pyyaml", "pandas"]
+requires-python = ">=3.6.0"
+readme = "README.md"
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+]
