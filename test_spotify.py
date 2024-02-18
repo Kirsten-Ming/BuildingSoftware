@@ -3,7 +3,7 @@ from unittest.mock import patch
 
 from plyer import notification
 
-from analysis import SAnalysis
+from analysis import Analysis
 
 @pytest.fixture
 def spotify_analyzer():
