@@ -31,7 +31,7 @@ This Python script performs analysis on Spotify data for a given artist. It util
 5. Run the script with the artist ID and the path to the configuration file as command-line arguments:
 
    ```bash
-   python script.py <artist_id> <config_file_path>
+   python analysis.py <artist_id> <config_file_path>
    ```
 
 ## Usage
