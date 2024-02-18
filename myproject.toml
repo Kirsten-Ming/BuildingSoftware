@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "spotify-analysis-tool"
+name = "Analysis"
 authors = [
     {name = "Kirsten Ming, email = Kirsten.ming@ontariohealth.ca},
 ]
